@@ -1,0 +1,227 @@
+From bf652dcd47905ad1d23346bf4ee7192287dcd388 Mon Sep 17 00:00:00 2001
+From: Phoebus Mak <61957902+phoebusm@users.noreply.github.com>
+Date: Fri, 29 Sep 2023 17:32:47 +0100
+Subject: [PATCH] Add support of setting CAPath and relevant test (#4982)
+
+* Add support of setting CAPath and relevant test
+
+* Renaming macro and update when will it get define
+---
+ sdk/core/azure-core/CHANGELOG.md              |  3 ++
+ .../inc/azure/core/http/curl_transport.hpp    | 22 ++++++++++
+ sdk/core/azure-core/src/http/curl/curl.cpp    | 19 +++++++++
+ .../test/ut/curl_connection_pool_test.cpp     | 14 ++++---
+ .../azure-core/test/ut/curl_options_test.cpp  | 42 +++++++++++++++++++
+ 5 files changed, 94 insertions(+), 6 deletions(-)
+
+diff --git a/sdk/core/azure-core/CHANGELOG.md b/sdk/core/azure-core/CHANGELOG.md
+index 84051931ff..f7dc726aae 100644
+--- a/sdk/core/azure-core/CHANGELOG.md
++++ b/sdk/core/azure-core/CHANGELOG.md
+@@ -4,6 +4,9 @@
+ 
+ ### Features Added
+ 
++- [[#4983]](https://github.com/Azure/azure-sdk-for-cpp/issues/4983) Added support for setting `CURLOPT_CAPATH` libcurl option on Linux.
++
++
+ ### Breaking Changes
+ 
+ ### Bugs Fixed
+diff --git a/sdk/core/azure-core/inc/azure/core/http/curl_transport.hpp b/sdk/core/azure-core/inc/azure/core/http/curl_transport.hpp
+index d0fb2b4e82..9e417afcfe 100644
+--- a/sdk/core/azure-core/inc/azure/core/http/curl_transport.hpp
++++ b/sdk/core/azure-core/inc/azure/core/http/curl_transport.hpp
+@@ -12,6 +12,14 @@
+ #include "azure/core/http/http.hpp"
+ #include "azure/core/http/policies/policy.hpp"
+ #include "azure/core/http/transport.hpp"
++#include "azure/core/platform.hpp"
++
++#if defined(AZ_PLATFORM_LINUX)
++#include <openssl/opensslv.h>
++#if OPENSSL_VERSION_NUMBER >= 0x00905100L
++#define _azure_SUPPORT_SETTING_CAPATH
++#endif // OPENSSL_VERSION_NUMBER >= 0x00905100L
++#endif // defined(AZ_PLATFORM_LINUX)
+ 
+ namespace Azure { namespace Core { namespace Http {
+   class CurlNetworkConnection;
+@@ -122,6 +130,20 @@ namespace Azure { namespace Core { namespace Http {
+      */
+     std::string CAInfo;
+ 
++#if defined(_azure_SUPPORT_SETTING_CAPATH)
++    /**
++     * @brief Path to a directory which holds PEM encoded file, containing the certificate
++     * authorities sent to libcurl handle directly.
++     *
++     * @remark The Azure SDK will not check if the path is valid or not.
++     *
++     * @remark The default is the built-in system specific path. More about this option:
++     * https://curl.se/libcurl/c/CURLOPT_CAPATH.html
++     *
++     */
++    std::string CAPath;
++#endif
++
+     /**
+      * @brief All HTTP requests will keep the connection channel open to the service.
+      *
+diff --git a/sdk/core/azure-core/src/http/curl/curl.cpp b/sdk/core/azure-core/src/http/curl/curl.cpp
+index b8703eac04..89b292c7ee 100644
+--- a/sdk/core/azure-core/src/http/curl/curl.cpp
++++ b/sdk/core/azure-core/src/http/curl/curl.cpp
+@@ -1283,6 +1283,12 @@ inline std::string GetConnectionKey(std::string const& host, CurlTransportOption
+   key.append(",");
+   key.append(!options.CAInfo.empty() ? options.CAInfo : "0");
+   key.append(",");
++#if defined(_azure_SUPPORT_SETTING_CAPATH)
++  key.append(!options.CAPath.empty() ? options.CAPath : "0");
++#else
++  key.append("0"); // CAPath is always empty on Windows;
++#endif
++  key.append(",");
+   key.append(
+       options.Proxy.HasValue() ? (options.Proxy.Value().empty() ? "NoProxy" : options.Proxy.Value())
+                                : "0");
+@@ -2314,6 +2320,19 @@ CurlConnection::CurlConnection(
+     }
+   }
+ 
++#if defined(_azure_SUPPORT_SETTING_CAPATH)
++  if (!options.CAPath.empty())
++  {
++    if (!SetLibcurlOption(m_handle, CURLOPT_CAPATH, options.CAPath.c_str(), &result))
++    {
++      throw Azure::Core::Http::TransportException(
++          _detail::DefaultFailedToGetNewConnectionTemplate + hostDisplayName
++          + ". Failed to set CA path to:" + options.CAPath + ". "
++          + std::string(curl_easy_strerror(result)));
++    }
++  }
++#endif
++
+ #if LIBCURL_VERSION_NUM >= 0x074D00 // 7.77.0
+   if (!options.SslOptions.PemEncodedExpectedRootCertificates.empty())
+   {
+diff --git a/sdk/core/azure-core/test/ut/curl_connection_pool_test.cpp b/sdk/core/azure-core/test/ut/curl_connection_pool_test.cpp
+index 5e835b123c..cad4aeb252 100644
+--- a/sdk/core/azure-core/test/ut/curl_connection_pool_test.cpp
++++ b/sdk/core/azure-core/test/ut/curl_connection_pool_test.cpp
+@@ -56,7 +56,9 @@ namespace Azure { namespace Core { namespace Test {
+       Azure::Core::Http::Request req(
+           Azure::Core::Http::HttpMethod::Get, Azure::Core::Url(AzureSdkHttpbinServer::Get()));
+       std::string const expectedConnectionKey(CreateConnectionKey(
+-          AzureSdkHttpbinServer::Schema(), AzureSdkHttpbinServer::Host(), ",0,0,0,0,1,1,0,0,0,0"));
++          AzureSdkHttpbinServer::Schema(),
++          AzureSdkHttpbinServer::Host(),
++          ",0,0,0,0,0,1,1,0,0,0,0"));
+ 
+       {
+         // Creating a new connection with default options
+@@ -125,7 +127,7 @@ namespace Azure { namespace Core { namespace Test {
+ 
+       // Now test that using a different connection config won't re-use the same connection
+       std::string const secondExpectedKey = AzureSdkHttpbinServer::Schema() + "://"
+-          + AzureSdkHttpbinServer::Host() + ",0,0,0,0,1,0,0,0,0,200000";
++          + AzureSdkHttpbinServer::Host() + ",0,0,0,0,0,1,0,0,0,0,200000";
+       {
+         // Creating a new connection with options
+         Azure::Core::Http::CurlTransportOptions options;
+@@ -436,7 +438,7 @@ namespace Azure { namespace Core { namespace Test {
+         std::string const expectedConnectionKey(CreateConnectionKey(
+             AzureSdkHttpbinServer::Schema(),
+             AzureSdkHttpbinServer::Host(),
+-            ",0,0,0,0,1,1,0,0,0,0"));
++            ",0,0,0,0,0,1,1,0,0,0,0"));
+ 
+         // Creating a new connection with default options
+         auto connection = Azure::Core::Http::_detail::CurlConnectionPool::g_curlConnectionPool
+@@ -474,7 +476,7 @@ namespace Azure { namespace Core { namespace Test {
+         std::string const expectedConnectionKey(CreateConnectionKey(
+             AzureSdkHttpbinServer::Schema(),
+             AzureSdkHttpbinServer::Host(),
+-            ":443,0,0,0,0,1,1,0,0,0,0"));
++            ":443,0,0,0,0,0,1,1,0,0,0,0"));
+ 
+         // Creating a new connection with default options
+         auto connection = Azure::Core::Http::_detail::CurlConnectionPool::g_curlConnectionPool
+@@ -513,7 +515,7 @@ namespace Azure { namespace Core { namespace Test {
+         std::string const expectedConnectionKey(CreateConnectionKey(
+             AzureSdkHttpbinServer::Schema(),
+             AzureSdkHttpbinServer::Host(),
+-            ",0,0,0,0,1,1,0,0,0,0"));
++            ",0,0,0,0,0,1,1,0,0,0,0"));
+ 
+         // Creating a new connection with default options
+         auto connection = Azure::Core::Http::_detail::CurlConnectionPool::g_curlConnectionPool
+@@ -550,7 +552,7 @@ namespace Azure { namespace Core { namespace Test {
+         std::string const expectedConnectionKey(CreateConnectionKey(
+             AzureSdkHttpbinServer::Schema(),
+             AzureSdkHttpbinServer::Host(),
+-            ":443,0,0,0,0,1,1,0,0,0,0"));
++            ":443,0,0,0,0,0,1,1,0,0,0,0"));
+ 
+         // Creating a new connection with default options
+         auto connection = Azure::Core::Http::_detail::CurlConnectionPool::g_curlConnectionPool
+diff --git a/sdk/core/azure-core/test/ut/curl_options_test.cpp b/sdk/core/azure-core/test/ut/curl_options_test.cpp
+index f20e3c0a04..7de70883ab 100644
+--- a/sdk/core/azure-core/test/ut/curl_options_test.cpp
++++ b/sdk/core/azure-core/test/ut/curl_options_test.cpp
+@@ -12,6 +12,7 @@
+ 
+ #if defined(BUILD_CURL_HTTP_TRANSPORT_ADAPTER)
+ #include "azure/core/http/curl_transport.hpp"
++#include "openssl/x509.h"
+ #endif
+ 
+ #include "transport_adapter_base_test.hpp"
+@@ -234,6 +235,47 @@ namespace Azure { namespace Core { namespace Test {
+                         .ConnectionPoolIndex.clear());
+   }
+ 
++#if defined(_azure_SUPPORT_SETTING_CAPATH)
++  TEST(CurlTransportOptions, setCADirectory)
++  {
++    Azure::Core::Http::CurlTransportOptions curlOptions;
++    // openssl default cert location will be used only if environment variable SSL_CERT_DIR
++    // is not set
++    const char* ca = getenv(X509_get_default_cert_dir_env());
++    if (ca)
++    {
++      curlOptions.CAPath = ca;
++    }
++    else
++    {
++      curlOptions.CAPath = X509_get_default_cert_dir();
++    }
++
++    auto transportAdapter = std::make_shared<Azure::Core::Http::CurlTransport>(curlOptions);
++    Azure::Core::Http::Policies::TransportOptions options;
++    options.Transport = transportAdapter;
++    auto transportPolicy
++        = std::make_unique<Azure::Core::Http::Policies::_internal::TransportPolicy>(options);
++
++    std::vector<std::unique_ptr<Azure::Core::Http::Policies::HttpPolicy>> policies;
++    policies.emplace_back(std::move(transportPolicy));
++    Azure::Core::Http::_internal::HttpPipeline pipeline(policies);
++
++    // Use HTTPS
++    Azure::Core::Url url(AzureSdkHttpbinServer::Get());
++    Azure::Core::Http::Request request(Azure::Core::Http::HttpMethod::Get, url);
++
++    std::unique_ptr<Azure::Core::Http::RawResponse> response;
++    EXPECT_NO_THROW(response = pipeline.Send(request, Azure::Core::Context::ApplicationContext));
++    EXPECT_EQ(response->GetStatusCode(), Azure::Core::Http::HttpStatusCode::Ok);
++
++    // Clean the connection from the pool *Windows fails to clean if we leave to be clean upon
++    // app-destruction
++    EXPECT_NO_THROW(Azure::Core::Http::_detail::CurlConnectionPool::g_curlConnectionPool
++                        .ConnectionPoolIndex.clear());
++  }
++#endif
++
+   TEST(CurlTransportOptions, httpsDefault)
+   {
+     auto transportAdapter = std::make_shared<Azure::Core::Http::CurlTransport>();
