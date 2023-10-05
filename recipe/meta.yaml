@@ -1,5 +1,5 @@
-{% set version = "1.10.2" %}
-{% set sha256 = "36557dae87de4cdd257d9b441d9a7f043290eae6666fb1065e0fa486ae3e58a0" %}
+{% set version = "1.10.3" %}
+{% set sha256 = "dd624c2f86adf474d2d0a23066be6e27af9cbd7e3f8d9d8fd7bf981e884b7b48" %}
 
 package:
   name: azure-core-cpp
