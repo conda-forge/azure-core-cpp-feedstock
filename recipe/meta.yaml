@@ -14,9 +14,9 @@ source:
     - 0001-remove-wil-from-exported-config.patch
 
 build:
-  number: 0
+  number: 1
   run_exports:
-    - {{ pin_subpackage("azure-core-cpp", max_pin="x") }}
+    - {{ pin_subpackage("azure-core-cpp", max_pin="x.x") }}
 
 # https://github.com/Azure/azure-sdk-for-cpp/blob/main/sdk/core/azure-core/vcpkg.json
 requirements:
