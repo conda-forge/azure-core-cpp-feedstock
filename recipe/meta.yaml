@@ -1,5 +1,5 @@
-{% set version = "1.11.1" %}
-{% set sha256 = "60db0bc2b40046eb32de01ac14df85abbb4df7954db8906857d0d9027a6e421e" %}
+{% set version = "1.11.2" %}
+{% set sha256 = "022e93425e0b79dbb29805a2977fa8194317cc176e1902ba736326399cf9e3a3" %}
 
 package:
   name: azure-core-cpp
@@ -14,7 +14,7 @@ source:
     - 0001-remove-wil-from-exported-config.patch
 
 build:
-  number: 1
+  number: 0
   run_exports:
     - {{ pin_subpackage("azure-core-cpp", max_pin="x.x.x") }}
 
