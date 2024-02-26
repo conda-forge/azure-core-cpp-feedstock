@@ -14,7 +14,7 @@ source:
     - 0001-remove-wil-from-exported-config.patch
 
 build:
-  number: 1
+  number: 0
   run_exports:
     - {{ pin_subpackage("azure-core-cpp", max_pin="x.x.x") }}
 
