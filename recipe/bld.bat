@@ -10,6 +10,7 @@ cmake %CMAKE_ARGS% ^
   -G Ninja ^
   -D BUILD_SHARED_LIBS=ON ^
   -D BUILD_TRANSPORT_WINHTTP=ON ^
+  -D BUILD_TRANSPORT_CURL=ON ^
   ..
 if %ERRORLEVEL% neq 0 exit 1
 
