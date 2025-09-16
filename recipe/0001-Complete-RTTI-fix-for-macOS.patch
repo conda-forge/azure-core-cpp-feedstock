@@ -12,10 +12,10 @@ index e1db45d18..39351c5ba 100644
      target_compile_definitions(${targetName} PUBLIC AZ_${macroNamePart}_DLL)
  
 diff --git i/sdk/core/azure-core/CMakeLists.txt w/sdk/core/azure-core/CMakeLists.txt
-index ad83b71d0..a4c59cce3 100644
+index ad83b71d0..11b62fb72 100644
 --- i/sdk/core/azure-core/CMakeLists.txt
 +++ w/sdk/core/azure-core/CMakeLists.txt
-@@ -200,6 +200,18 @@ az_vcpkg_export(
+@@ -200,6 +200,21 @@ az_vcpkg_export(
      "azure/core/dll_import_export.hpp"
    )
  
@@ -29,6 +29,9 @@ index ad83b71d0..a4c59cce3 100644
 +  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-undefined,dynamic_lookup")
 +  # Add -Wl,-export_dynamic for RTTI fix
 +  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-export_dynamic")
++  # Set LDFLAGS to ensure proper linking
++  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-undefined,dynamic_lookup")
++  set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -Wl,-undefined,dynamic_lookup")
 +endif()
 +
  az_rtti_setup(
