@@ -12,6 +12,18 @@ then
   CXXFLAGS="${CXXFLAGS} -D_LIBCPP_DISABLE_AVAILABILITY"
 fi
 
+# Build with explicit symbol export for macOS
+if [[ "${target_platform}" == osx-* ]]
+then
+  # Use -Wl,-undefined,dynamic_lookup to allow undefined symbols at link time
+  # This helps with RTTI to work correctly across shared library boundaries
+  export LDFLAGS="${LDFLAGS} -Wl,-undefined,dynamic_lookup"
+  # Also set CMAKE_SHARED_LINKER_FLAGS to ensure the flag is applied during linking
+  export CMAKE_SHARED_LINKER_FLAGS="-Wl,-undefined,dynamic_lookup"
+  # Pass the flag as a CMake argument to ensure it's applied
+  CMAKE_ARGS="${CMAKE_ARGS} -DCMAKE_SHARED_LINKER_FLAGS=-Wl,-undefined,dynamic_lookup"
+fi
+
 cd sdk/core/azure-core
 
 # https://github.com/Azure/azure-sdk-for-cpp/blob/main/CONTRIBUTING.md#building-the-project

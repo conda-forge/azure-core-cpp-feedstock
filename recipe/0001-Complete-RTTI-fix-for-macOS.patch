@@ -1,0 +1,70 @@
+diff --git i/cmake-modules/AzureVcpkg.cmake w/cmake-modules/AzureVcpkg.cmake
+index e1db45d18..39351c5ba 100644
+--- i/cmake-modules/AzureVcpkg.cmake
++++ w/cmake-modules/AzureVcpkg.cmake
+@@ -111,7 +111,7 @@ macro(az_vcpkg_export targetName macroNamePart dllImportExportHeaderPath)
+     )
+ 
+   # If building a Windows DLL, patch the dll_import_export.hpp
+-  if(WIN32 AND BUILD_SHARED_LIBS)
++  if((WIN32 OR APPLE) AND BUILD_SHARED_LIBS)
+     add_compile_definitions(AZ_${macroNamePart}_BEING_BUILT)
+     target_compile_definitions(${targetName} PUBLIC AZ_${macroNamePart}_DLL)
+ 
+diff --git i/sdk/core/azure-core/CMakeLists.txt w/sdk/core/azure-core/CMakeLists.txt
+index ad83b71d0..a4c59cce3 100644
+--- i/sdk/core/azure-core/CMakeLists.txt
++++ w/sdk/core/azure-core/CMakeLists.txt
+@@ -200,6 +200,18 @@ az_vcpkg_export(
+     "azure/core/dll_import_export.hpp"
+   )
+ 
++# Set symbol visibility for macOS to ensure exception symbols are properly exported
++if(APPLE)
++  set(CMAKE_CXX_VISIBILITY_PRESET default)
++  set(CMAKE_VISIBILITY_INLINES_HIDDEN OFF)
++  # Ensure exception symbols are exported for RTTI to work across shared library boundaries
++  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fvisibility=default")
++  # Additional flags to ensure proper symbol export
++  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-undefined,dynamic_lookup")
++  # Add -Wl,-export_dynamic for RTTI fix
++  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-export_dynamic")
++endif()
++
+ az_rtti_setup(
+   azure-core
+   CORE
+diff --git i/sdk/core/azure-core/inc/azure/core/dll_import_export.hpp w/sdk/core/azure-core/inc/azure/core/dll_import_export.hpp
+index 0518b08db..dbae5a571 100644
+--- i/sdk/core/azure-core/inc/azure/core/dll_import_export.hpp
++++ w/sdk/core/azure-core/inc/azure/core/dll_import_export.hpp
+@@ -86,6 +86,8 @@
+ #else // !defined(AZ_CORE_BEING_BUILT)
+ #define AZ_CORE_DLLEXPORT __declspec(dllimport)
+ #endif // AZ_CORE_BEING_BUILT
++#elif defined(__APPLE__)
++#define AZ_CORE_DLLEXPORT __attribute__((visibility("default")))
+ #else // !defined(_MSC_VER)
+ #define AZ_CORE_DLLEXPORT
+ #endif // _MSC_VER
+diff --git i/sdk/core/azure-core/inc/azure/core/exception.hpp w/sdk/core/azure-core/inc/azure/core/exception.hpp
+index fef1172ec..ac90b4d99 100644
+--- i/sdk/core/azure-core/inc/azure/core/exception.hpp
++++ w/sdk/core/azure-core/inc/azure/core/exception.hpp
+@@ -10,6 +10,7 @@
+ 
+ #include "azure/core/http/http_status_code.hpp"
+ #include "azure/core/http/raw_response.hpp"
++#include "azure/core/dll_import_export.hpp"
+ 
+ #include <memory>
+ #include <stdexcept>
+@@ -54,7 +55,7 @@ namespace Azure { namespace Core {
+    *
+    * \endcode
+    */
+-  class RequestFailedException : public std::runtime_error {
++  class AZ_CORE_DLLEXPORT RequestFailedException : public std::runtime_error {
+   public:
+     /**
+      * @brief The entire HTTP raw response.
