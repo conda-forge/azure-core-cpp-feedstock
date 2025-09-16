@@ -38,6 +38,7 @@ test:
     - ninja
   files:
     - test_rtti_fix.cpp
+    - test_symbol_visibility.cpp
     - test_rtti_macos.sh
   commands:
     # shared libs
