@@ -15,6 +15,6 @@ docker_image:
 libcurl:
 - '8'
 openssl:
-- '3'
+- '3.5'
 target_platform:
 - linux-ppc64le
