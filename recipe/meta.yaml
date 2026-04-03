@@ -28,7 +28,9 @@ requirements:
   host:
     - libcurl  # [not win]
     - openssl  # [not win]
-    - wil  # [win]
+    # Pin to earlier version until C++14 incompatibility is fixed.
+    # Ref: https://github.com/microsoft/wil/pull/615
+    - wil ==1.0.240803.1   # [win]
 
 test:
   requires:
