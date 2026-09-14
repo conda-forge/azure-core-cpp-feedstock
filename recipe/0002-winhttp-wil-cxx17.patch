@@ -1,0 +1,11 @@
+--- a/sdk/core/azure-core/CMakeLists.txt
++++ b/sdk/core/azure-core/CMakeLists.txt
+@@ -187,6 +187,8 @@
+   endif()
+ endif()
+ if(BUILD_TRANSPORT_WINHTTP)
++  # WIL is a private implementation dependency and now requires C++17.
++  set_property(TARGET azure-core PROPERTY CXX_STANDARD 17)
+   target_link_libraries(azure-core PRIVATE winhttp WIL::WIL)
+ endif()
+ 

@@ -12,9 +12,10 @@ source:
     # https://github.com/Azure/azure-sdk-for-cpp/issues/4784
     # https://github.com/Azure/azure-sdk-for-cpp/pull/4785
     - 0001-remove-wil-from-exported-config.patch
+    - 0002-winhttp-wil-cxx17.patch  # [win]
 
 build:
-  number: 0
+  number: 1
   run_exports:
     - {{ pin_subpackage("azure-core-cpp", max_pin="x.x.x") }}
 
@@ -28,11 +29,11 @@ requirements:
   host:
     - libcurl  # [not win]
     - openssl  # [not win]
-    # Pin to earlier version until C++14 incompatibility is fixed.
-    # Ref: https://github.com/microsoft/wil/pull/615
-    - wil ==1.0.240803.1   # [win]
+    - wil >=1.0.260126.7   # [win]
 
 test:
+  files:
+    - consumer  # [win and arm64]
   requires:
     - {{ compiler('cxx') }}
     - cmake
@@ -56,6 +57,11 @@ test:
     - cmake %CMAKE_ARGS% -G Ninja -S %RECIPE_DIR%\test-linking-src -B test-linking-bld  # [win]
     - cmake --build test-linking-bld
     - cmake --build test-linking-bld --target test
+    - cmake -S consumer -B consumer-build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="%LIBRARY_PREFIX%"  # [win and arm64]
+    - cmake --build consumer-build  # [win and arm64]
+    - consumer-build\azure_core_consumer.exe  # [win and arm64]
+    - dumpbin /headers consumer-build\azure_core_consumer.exe | findstr /I /C:"AA64 machine (ARM64)"  # [win and arm64]
+    - dumpbin /headers %LIBRARY_BIN%\azure-core.dll | findstr /I /C:"AA64 machine (ARM64)"  # [win and arm64]
 
 about:
   home: https://github.com/Azure/azure-sdk-for-cpp/
