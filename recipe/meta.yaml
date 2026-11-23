@@ -15,7 +15,7 @@ source:
     - 0002-winhttp-wil-cxx17.patch  # [win]
 
 build:
-  number: 1
+  number: 2
   run_exports:
     - {{ pin_subpackage("azure-core-cpp", max_pin="x.x.x") }}
 
